@@ -1,0 +1,8 @@
+2025-10-31 00:27:33,803 - ERROR - ❌ Erro fatal: EOF when reading a line
+Traceback (most recent call last):
+  File "/app/hotmart_downloader_hybrid.py", line 1255, in <module>
+    main()
+  File "/app/hotmart_downloader_hybrid.py", line 1068, in main
+    redownload_choice = input("Forçar re-download de arquivos existentes? [s/N] ").strip().lower()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+EOFError: EOF when reading a line

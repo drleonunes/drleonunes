@@ -122,8 +122,11 @@ def _key_iv(pl_url: str, sess: requests.Session, headers: dict) -> Tuple[Optiona
 
 def _dl_track(pl_url: str, out_ts: Path, sess: requests.Session, headers: dict) -> bool:
     """Baixa e decripta uma track HLS (vídeo ou áudio)."""
+    resp = fetch_with_retry(sess, pl_url, headers)
+    if not resp:
+        raise Exception(f"Falha ao carregar playlist: {pl_url}")
+    pl = m3u8.loads(resp.text, uri=pl_url)
     key, iv = _key_iv(pl_url, sess, headers)
-    pl = m3u8.load(pl_url, headers=headers)
 
     def fetch_segment(seg):
         resp = fetch_with_retry(sess, seg.absolute_uri, headers)

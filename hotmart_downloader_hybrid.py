@@ -73,7 +73,7 @@ BASE_HEADERS = {
 }
 
 THREADS = 8  # Original
-TIMEOUT_SEC = 30  # Aumentado
+TIMEOUT_SEC = 90  # Aumentado para 90 segundos para lições com muitos anexos
 DL_ROOT = Path("downloads")
 FFMPEG_CMD = "ffmpeg"
 FORCE_REDOWNLOAD = False  # Será modificada no main()
@@ -144,7 +144,7 @@ class CheckpointManager:
             self.checkpoint_file.unlink()
 
 # ─── Retry com Backoff ───────────────────────────────────────────────────
-def fetch_with_retry(sess: requests.Session, url: str, headers: dict, 
+def fetch_with_retry(sess: requests.Session, url: str, headers: dict,
                     max_retries: int = 3, **kwargs) -> Optional[requests.Response]:
     """Requisição com retry e backoff exponencial."""
     for attempt in range(max_retries):
@@ -193,7 +193,7 @@ def is_valid_video(path: Path, min_size_mb: float = 0.5) -> bool:
         return False
     
     size_mb = path.stat().st_size / (1024 * 1024)
-    
+
     # Vídeos muito pequenos são suspeitos
     if size_mb < min_size_mb:
         logger.warning(f"Arquivo muito pequeno ({size_mb:.1f}MB): {path.name}")
@@ -203,7 +203,7 @@ def is_valid_video(path: Path, min_size_mb: float = 0.5) -> bool:
     if size_mb < 0.1:  # Menor que 100KB é definitivamente inválido
         logger.warning(f"Arquivo inválido/corrompido: {path.name}")
         return False
-    
+
     return True
 
 # ─── Anexos (CORRIGIDO) ──────────────────────────────────────────────────
@@ -264,7 +264,7 @@ def save_attachment(sess: requests.Session, attachment: dict, out_dir: Path, cou
         }
         
         print(f"   ⬇️  Baixando de: api-club-hot-club-api.cb.hotmart.com")
-        
+
         # Primeira requisição - pode retornar JSON com URL ou já ser o arquivo
         file_resp = fetch_with_retry(sess, download_url, headers, stream=True)
         if not file_resp:
@@ -279,27 +279,27 @@ def save_attachment(sess: requests.Session, attachment: dict, out_dir: Path, cou
                 # API retornou JSON, buscar URL real
                 data = file_resp.json()
                 print(f"   🔗 API retornou JSON, buscando URL...")
-                
+
                 actual_url = (
-                    data.get('downloadUrl') or 
-                    data.get('url') or 
+                    data.get('downloadUrl') or
+                    data.get('url') or
                     data.get('directDownloadUrl') or
                     data.get('fileUrl')
                 )
-                
+
                 if not actual_url:
                     print(f"   ❌ JSON não contém URL de download")
                     print(f"   📄 Resposta: {json.dumps(data, indent=2)[:200]}")
                     return False
-                
+
                 print(f"   🔗 Seguindo para URL de download...")
-                
+
                 # Buscar arquivo da URL real
                 file_resp = fetch_with_retry(sess, actual_url, headers_for(actual_url), stream=True)
                 if not file_resp:
                     print(f"   ❌ Falha ao baixar do redirect")
                     return False
-                    
+
             except json.JSONDecodeError:
                 print(f"   ⚠️  Resposta não é JSON válido, tentando salvar como arquivo...")
         
@@ -312,11 +312,11 @@ def save_attachment(sess: requests.Session, attachment: dict, out_dir: Path, cou
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-                
+
                 # Mostrar progresso
                 if downloaded > 0:
                     print(f"   💾 Salvando: {downloaded/1024:.1f} KB")
-            
+
             # Verificar tamanho
             actual_size = temp_path.stat().st_size
             if actual_size < 100:  # Arquivo muito pequeno, provavelmente erro
@@ -358,20 +358,20 @@ def fetch_page_attachments(sess: requests.Session, page_hash: str, course_id: st
             return []
         
         data = resp.json()
-        
+
         # DEBUG: Ver estrutura completa
         print("\n" + "="*70)
         print("🔍 DEBUG - Resposta completa da API complementary-content:")
         print("="*70)
         print(json.dumps(data, indent=2, ensure_ascii=False))
         print("="*70 + "\n")
-        
+
         return data.get('attachments', [])
         
     except Exception as e:
         logger.warning(f"Erro ao buscar conteúdo complementar: {e}")
         return []
-    
+
 def save_description(content: str, out_dir: Path) -> bool:
     """Salva descrição da aula."""
     try:
@@ -488,7 +488,7 @@ def extract_streams(sess: requests.Session, embed: str) -> List[str]:
 def choose_av(master: str, sess: requests.Session) -> Tuple[str, Optional[str]]:
     """Escolhe melhor variante com tratamento de erro."""
     print(f"🔍 Analisando playlist master")
-    
+
     # Usar requests ao invés de m3u8.load direto
     resp = fetch_with_retry(sess, master, headers_for(master))
     if not resp:
@@ -521,16 +521,16 @@ def subtitles_playlist(master: str, sess: requests.Session) -> Optional[str]:
         resp = fetch_with_retry(sess, master, headers_for(master))
         if not resp:
             return None
-        
+
         pl = m3u8.loads(resp.text, uri=master)
-        
+
         for m in pl.media:
             if m.type=="SUBTITLES" and m.uri:
                 base = master.rsplit("/",1)[0]+"/"
                 return urljoin(base, m.uri)
     except Exception as e:
         logger.warning(f"Erro ao buscar legendas: {e}")
-    
+
     return None
 
 def download_subs(pl_url: str, vtt_out: Path, sess: requests.Session) -> None:
@@ -540,9 +540,9 @@ def download_subs(pl_url: str, vtt_out: Path, sess: requests.Session) -> None:
         if not resp:
             logger.warning("Falha ao baixar legendas")
             return
-        
+
         pl = m3u8.loads(resp.text, uri=pl_url)
-        
+
         with open(vtt_out, "wb") as f:
             for seg in pl.segments:
                 resp = fetch_with_retry(sess, seg.absolute_uri, headers_for(seg.absolute_uri))
@@ -581,15 +581,15 @@ def dl_track(pl_url: str, out_ts: Path, sess: requests.Session,
     if not resp:
         logger.error(f"Falha ao buscar playlist: {pl_url}")
         raise Exception("Não foi possível carregar playlist")
-    
+
     # Parsear playlist com m3u8
     pl = m3u8.loads(resp.text, uri=pl_url)
     segs = pl.segments
-    
+
     if not segs:
         logger.error("Playlist sem segmentos!")
         raise Exception("Playlist vazia")
-    
+
     out_ts.parent.mkdir(parents=True, exist_ok=True)
 
     def fetch(seg):
@@ -619,15 +619,15 @@ def dl_track(pl_url: str, out_ts: Path, sess: requests.Session,
                 # .result() bloqueia e garante ordem
                 data = ex.submit(fetch, seg).result()
                 f.write(data)
-                
+
                 if (i + 1) % 20 == 0 or (i + 1) == len(segs):
                     print(f"   Progresso: {i+1}/{len(segs)} segmentos")
-                    
+
             except Exception as e:
                 logger.warning(f"Erro no segmento {i+1}: {e}")
                 # Continua mesmo com erro em segmento individual
                 continue
-    
+
     # Verificar se arquivo foi criado
     if not out_ts.exists() or out_ts.stat().st_size < 1024:
         raise Exception(f"Arquivo TS não foi criado ou está vazio: {out_ts}")
@@ -672,27 +672,27 @@ def ffmpeg_mux(v_ts: Path, a_ts: Optional[Path],
 # ─── Download de Vídeo ───────────────────────────────────────────────────
 
 def download_video(sess: requests.Session, course: dict, lesson: dict, video: dict,
-                   module_name: str = "", lesson_out_dir: Path = None, 
+                   module_name: str = "", lesson_out_dir: Path = None,
                    video_order: int = 0) -> bool:
     """Download de vídeo com retry automático em caso de erro de rede."""
-    
+
     max_retries = 2  # Total de 3 tentativas (0, 1, 2)
-    
+
     for attempt in range(max_retries + 1):
         try:
             # Tentar download
-            result = _download_video_attempt(sess, course, lesson, video, 
+            result = _download_video_attempt(sess, course, lesson, video,
                                             module_name, lesson_out_dir, video_order)
-            
+
             if result:
                 return True
-            
+
             # Se falhou mas não lançou exceção, não tentar novamente
             return False
-            
+
         except Exception as e:
             error_str = str(e)
-            
+
             # Verificar se é erro de rede que vale retry
             is_network_error = any(err in error_str for err in [
                 "Connection reset",
@@ -703,7 +703,7 @@ def download_video(sess: requests.Session, course: dict, lesson: dict, video: di
                 "Connection refused",
                 "Connection aborted"
             ])
-            
+
             if is_network_error and attempt < max_retries:
                 wait = 5 * (attempt + 1)  # 5s, 10s
                 logger.warning(f"⚠️  Erro de rede (tentativa {attempt + 1}/{max_retries + 1})")
@@ -715,48 +715,48 @@ def download_video(sess: requests.Session, course: dict, lesson: dict, video: di
                 logger.error(f"❌ Erro ao baixar vídeo: {e}")
                 logger.exception("Detalhes do erro:")
                 return False
-    
+
     return False
 
 
 def _download_video_attempt(sess: requests.Session, course: dict, lesson: dict, video: dict,
-                            module_name: str = "", lesson_out_dir: Path = None, 
+                            module_name: str = "", lesson_out_dir: Path = None,
                             video_order: int = 0) -> bool:
     """Tentativa única de download de vídeo."""
-    
+
     video_order_str = str(video_order).zfill(2)
     video_name = f"{video_order_str}. {video['name']}"
-    
+
     print(f"\n🎬 Processando: {video_name}")
-    
+
     # Extract streams
     embed_urls = extract_streams(sess, video["url"])
     if not embed_urls:
         print("❌ DRM ou nada encontrado")
         return False
-    
+
     master = embed_urls[0]
     print(f"📡 Master playlist obtida")
-    
+
     try:
         video_url, audio_url = choose_av(master, sess)
     except Exception as e:
         print(f"❌ Erro ao ler variants: {e}")
         return False
-    
+
     sub_pl = subtitles_playlist(master, sess)
     if sub_pl:
         print("📝 Legenda encontrada")
-    
+
     # Output paths
     out_dir = lesson_out_dir or DL_ROOT / clean(course["name"])
     out_dir.mkdir(parents=True, exist_ok=True)
-    
+
     base_nm = clean(Path(video["name"]).stem)
     numbered_base_nm = f"{video_order_str}. {base_nm}"
     mp4_out = out_dir / f"{numbered_base_nm}.mp4"
     v_tt_out = out_dir / f"{numbered_base_nm}.vtt" if sub_pl else None
-    
+
     # Validação - CORRIGIDA
     if mp4_out.exists():
         file_size_mb = mp4_out.stat().st_size / (1024 * 1024)
@@ -771,9 +771,9 @@ def _download_video_attempt(sess: requests.Session, course: dict, lesson: dict, 
         else:
             print(f"⚠️  Arquivo inválido ou corrompido, re-downloading")
             mp4_out.unlink()
-    
+
     print(f"⬇️  Baixando: {mp4_out.name}")
-    
+
     # Download de streams
     try:
         if audio_url:
@@ -841,7 +841,7 @@ def _download_video_attempt(sess: requests.Session, course: dict, lesson: dict, 
         # Limpar arquivos temporários em caso de erro
         temp_files = [
             out_dir / f"_v_{video_order}.ts",
-            out_dir / f"_a_{video_order}.ts", 
+            out_dir / f"_a_{video_order}.ts",
             out_dir / f"_av_{video_order}.ts"
         ]
         for temp_file in temp_files:
@@ -850,7 +850,7 @@ def _download_video_attempt(sess: requests.Session, course: dict, lesson: dict, 
                     temp_file.unlink()
                 except:
                     pass
-        
+
         # Re-lançar exceção para ser tratada pelo retry
         raise
 
@@ -858,15 +858,15 @@ def count_existing_files(out_dir: Path) -> dict:
     """Conta arquivos já baixados em um diretório."""
     if not out_dir.exists():
         return {"videos": 0, "attachments": 0, "descriptions": 0, "links": 0}
-    
+
     videos = len(list(out_dir.rglob("*.mp4")))
     attachments = len(list((out_dir / "Materiais").glob("*"))) if (out_dir / "Materiais").exists() else 0
     descriptions = len(list(out_dir.rglob("descricao.html")))
     links = len(list(out_dir.rglob("links_complementares.html")))
-    
+
     return {
         "videos": videos,
-        "attachments": attachments, 
+        "attachments": attachments,
         "descriptions": descriptions,
         "links": links
     }
@@ -958,7 +958,7 @@ def download_module(sess: requests.Session, course: dict, module: dict,
     module_name = f"{module_order_str}. {clean(module['name'])}"
     
     print(f"\n📖 Módulo: {module_name}")
-    
+
     # Verificar arquivos existentes
     module_dir = DL_ROOT / clean(course["name"]) / module_name
     existing = count_existing_files(module_dir)
@@ -1088,14 +1088,14 @@ def main():
     sess.headers.update(BASE_HEADERS | {"Authorization": f"Bearer {TOKEN}"})
     
     print("📡 Buscando cursos...")
-    
+
     resp = fetch_with_retry(sess, URLS["courses"], headers_for(URLS["courses"]))
     if not resp:
         print("❌ Falha ao buscar cursos")
         sys.exit(1)
     
     print("✅ Cursos obtidos!")
-    
+
     raw = resp.json().get("data", [])
     courses = []
     
@@ -1138,7 +1138,7 @@ def main():
     checkpoint = checkpoint_mgr.load()
     
     print("📡 Buscando módulos...")
-    
+
     h_mod = headers_for(URLS["modules"]) | {
         "x-app-name": "app-club-consumer_v1.210.1_production",
         "slug": course["slug"],

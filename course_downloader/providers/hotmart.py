@@ -229,7 +229,10 @@ class HotmartProvider(BaseProvider):
 
         # Analisa o manifesto master para encontrar as melhores qualidades
         try:
-            pl = m3u8.load(master_url, headers=self.session.headers)
+            resp = fetch_with_retry(self.session, master_url, self.session.headers)
+            if not resp:
+                raise Exception("Falha ao carregar playlist master")
+            pl = m3u8.loads(resp.text, uri=master_url)
             base = master_url.rsplit("/", 1)[0] + "/"
 
             best_video = max(pl.playlists, key=lambda p: (p.stream_info.resolution or (0, 0))[1])
